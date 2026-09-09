@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Memora — Converse com a sua história</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        background: '#fbfaf7',
+                        foreground: '#1c1b1a',
+                        muted: '#73706e',
+                        border: '#e6e4de',
+                    },
+                    fontFamily: {
+                        serif: ['"Instrument Serif"', 'Georgia', 'serif'],
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-background text-foreground font-sans antialiased min-h-screen flex flex-col justify-between selection:bg-foreground selection:text-background">
+
+    <!-- Header -->
+    <header class="w-full max-w-4xl mx-auto px-6 py-12 flex justify-between items-center">
+        <span class="text-xl font-medium tracking-tight">Memora</span>
+        <a href="#comecar" class="text-sm text-muted hover:text-foreground transition-colors">Acessar</a>
+    </header>
+
+    <!-- Hero -->
+    <main class="w-full max-w-2xl mx-auto px-6 py-20 text-center flex flex-col items-center">
+        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-border text-xs text-muted mb-8 tracking-wide uppercase">
+            <span>Sua memória pessoal inteligente</span>
+        </div>
+
+        <h1 class="font-serif text-6xl sm:text-7xl md:text-8xl font-normal leading-[1.05] tracking-tight mb-8">
+            Converse com a <br /><span class="italic font-light">sua história.</span>
+        </h1>
+
+        <p class="text-lg sm:text-xl text-muted font-light leading-relaxed max-w-lg mb-12">
+            Um diário conversacional com inteligência artificial que lembra de cada detalhe por você. Sem formulários. Sem páginas em branco.
+        </p>
+
+        <!-- Interactive Mockup / Input -->
+        <div id="comecar" class="w-full max-w-md bg-white border border-border rounded-2xl p-6 shadow-sm text-left mb-8">
+            <div class="text-xs text-muted mb-2 font-medium">Hoje, 9 de setembro</div>
+            <div class="text-foreground text-base mb-6 font-normal">O que vale a pena guardar de hoje?</div>
+            <div class="border border-border rounded-xl p-4 bg-background text-muted text-sm mb-4 flex items-center justify-between">
+                <span>Comece por onde quiser...</span>
+                <span class="text-xs px-2 py-1 bg-white border border-border rounded-md text-foreground">🎙 Falar</span>
+            </div>
+            <button onclick="alert('Bem-vindo ao Memora. Em breve.')" class="w-full py-3 bg-foreground text-background rounded-xl font-medium text-sm hover:opacity-90 transition-opacity">
+                Começar conversa
+            </button>
+        </div>
+
+        <p class="text-xs text-muted">
+            Privacidade em primeiro lugar. Seus dados e memórias pertencem apenas a você.
+        </p>
+    </main>
+
+    <!-- Footer -->
+    <footer class="w-full max-w-4xl mx-auto px-6 py-12 flex flex-col sm:flex-row justify-between items-center text-xs text-muted border-t border-border">
+        <div>Memora © 2026. Todos os direitos reservados.</div>
+        <div class="flex gap-6 mt-4 sm:mt-0">
+            <a href="#" class="hover:text-foreground transition-colors">Privacidade</a>
+            <a href="#" class="hover:text-foreground transition-colors">Termos</a>
+        </div>
+    </footer>
+
+</body>
+</html>
