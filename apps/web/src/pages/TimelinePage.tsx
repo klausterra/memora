@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { apiGet } from "../lib/api";
+import { formatEntryDate, friendlyApiMessage } from "../lib/format";
 import type { JournalEntry } from "@memora/shared";
 
 export function TimelinePage() {
@@ -9,7 +11,7 @@ export function TimelinePage() {
   useEffect(() => {
     void apiGet<JournalEntry[]>("/api/v1/timeline")
       .then(setItems)
-      .catch((err: Error) => setError(err.message));
+      .catch((err: Error) => setError(friendlyApiMessage(err)));
   }, []);
 
   return (
@@ -18,7 +20,12 @@ export function TimelinePage() {
         Minha história
       </h1>
       {error && <p style={{ color: "#8f3d2c" }}>{error}</p>}
-      {!error && items.length === 0 && <p className="muted">Ainda não há entradas. Converse em Hoje.</p>}
+      {!error && items.length === 0 && (
+        <p className="muted">
+          Ainda não há entradas.{" "}
+          <Link to="/app">Converse em Hoje</Link>.
+        </p>
+      )}
       <div style={{ display: "grid", gap: 14, marginTop: 20 }}>
         {items.map((item) => (
           <article
@@ -28,8 +35,8 @@ export function TimelinePage() {
               paddingTop: 14,
             }}
           >
-            <div className="muted" style={{ fontSize: 13 }}>
-              {item.entryDate}
+            <div className="muted" style={{ fontSize: 13, textTransform: "capitalize" }}>
+              {formatEntryDate(item.entryDate)}
             </div>
             <h2 className="serif" style={{ fontSize: 24, margin: "6px 0" }}>
               {item.title}

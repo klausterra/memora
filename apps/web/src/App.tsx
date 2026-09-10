@@ -6,6 +6,7 @@ import { AppShell } from "./pages/AppShell";
 import { TodayPage } from "./pages/TodayPage";
 import { TimelinePage } from "./pages/TimelinePage";
 import { MemoriesPage } from "./pages/MemoriesPage";
+import { PwaInstallPrompt } from "./components/PwaInstallPrompt";
 
 export function App() {
   return (
@@ -21,6 +22,7 @@ export function App() {
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        <PwaInstallPrompt />
       </BrowserRouter>
     </AuthProvider>
   );

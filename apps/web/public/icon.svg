@@ -1,4 +1,42 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Memora">
   <rect width="128" height="128" rx="28" fill="#f3ece1"/>
-  <path d="M34 86V42h12.5l17.5 28.5L81.5 42H94v44H83V58.5L67.8 82H60.2L45 58.5V86H34Z" fill="#21564c"/>
+  <g fill="none" stroke="#1b4d3e" stroke-linecap="round" stroke-linejoin="round">
+    <!-- speech bubble -->
+    <path
+      stroke-width="5"
+      d="M64 20c-23 0-41.5 16.8-41.5 37.5 0 12.6 6.8 23.7 17.2 30.5L29 100.5 48.8 91.2c4.6 1.5 9.6 2.3 15.2 2.3 23 0 41.5-16.8 41.5-37.5S87 20 64 20Z"
+    />
+    <!-- continuous four-loop knot -->
+    <path
+      stroke-width="3.6"
+      d="M64 42
+         C54 42 48 49 48 57
+         C48 62 50.5 66 55 68.5
+         C50.5 71 48 75.5 48 81
+         C48 90 55.5 96 64 96
+         C72.5 96 80 90 80 81
+         C80 75.5 77.5 71 73 68.5
+         C77.5 66 80 62 80 57
+         C80 49 74 42 64 42Z
+         M64 50
+         C68.5 50 72 53.2 72 57.5
+         C72 61.5 68.5 64.5 64 64.5
+         C59.5 64.5 56 61.5 56 57.5
+         C56 53.2 59.5 50 64 50Z
+         M64 73
+         C69 73 73 76.5 73 81
+         C73 85.5 69 89 64 89
+         C59 89 55 85.5 55 81
+         C55 76.5 59 73 64 73Z"
+    />
+  </g>
+  <text
+    x="64"
+    y="116"
+    text-anchor="middle"
+    font-family="Source Sans 3, system-ui, sans-serif"
+    font-size="10"
+    letter-spacing="0.42em"
+    fill="#6b6258"
+  >MEMORA</text>
 </svg>

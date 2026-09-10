@@ -1,7 +1,9 @@
 import type { FormEvent } from "react";
-import { useMemo, useState } from "react";
-import { apiPost, streamMessage } from "../lib/api";
-import type { ChatMessage, ChatSession } from "@memora/shared";
+import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import { pickIcebreaker, type ChatMessage, type ChatSession } from "@memora/shared";
+import { apiGet, apiPost, streamMessage } from "../lib/api";
+import { friendlyApiMessage } from "../lib/format";
 
 export function TodayPage() {
   const [session, setSession] = useState<ChatSession | null>(null);
@@ -9,9 +11,11 @@ export function TodayPage() {
   const [draft, setDraft] = useState("");
   const [streaming, setStreaming] = useState("");
   const [busy, setBusy] = useState(false);
+  const [loadingSession, setLoadingSession] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [finishedTitle, setFinishedTitle] = useState<string | null>(null);
 
+  const icebreaker = useMemo(() => pickIcebreaker(), []);
   const dateLabel = useMemo(
     () =>
       new Date().toLocaleDateString("pt-BR", {
@@ -21,6 +25,31 @@ export function TodayPage() {
       }),
     [],
   );
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      setLoadingSession(true);
+      try {
+        const sessions = await apiGet<ChatSession[]>("/api/v1/chat/sessions");
+        const active = sessions.find((s) => s.status === "active");
+        if (!active || cancelled) return;
+        const detail = await apiGet<{ session: ChatSession; messages: ChatMessage[] }>(
+          `/api/v1/chat/sessions/${active.id}`,
+        );
+        if (cancelled) return;
+        setSession(detail.session);
+        setMessages(detail.messages.filter((m) => m.role === "user" || m.role === "assistant"));
+      } catch (err) {
+        if (!cancelled) setError(friendlyApiMessage(err));
+      } finally {
+        if (!cancelled) setLoadingSession(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function startSession() {
     setError(null);
@@ -32,7 +61,7 @@ export function TodayPage() {
       setMessages([]);
       setStreaming("");
     } catch (err) {
-      setError((err as Error).message);
+      setError(friendlyApiMessage(err));
     } finally {
       setBusy(false);
     }
@@ -70,7 +99,7 @@ export function TodayPage() {
         },
       });
     } catch (err) {
-      setError((err as Error).message);
+      setError(friendlyApiMessage(err));
     } finally {
       setBusy(false);
     }
@@ -89,11 +118,13 @@ export function TodayPage() {
       setMessages([]);
       setStreaming("");
     } catch (err) {
-      setError((err as Error).message);
+      setError(friendlyApiMessage(err));
     } finally {
       setBusy(false);
     }
   }
+
+  const headline = session?.icebreaker ?? icebreaker;
 
   return (
     <div>
@@ -101,10 +132,12 @@ export function TodayPage() {
         {dateLabel}
       </p>
       <h1 className="serif" style={{ fontSize: "clamp(34px, 5vw, 48px)", marginTop: 0 }}>
-        O que vale a pena guardar de hoje?
+        {headline}
       </h1>
 
-      {!session && (
+      {loadingSession && <p className="muted">Procurando conversa em aberto…</p>}
+
+      {!loadingSession && !session && (
         <div style={{ marginTop: 24 }}>
           <button className="btn btn-primary" onClick={() => void startSession()} disabled={busy}>
             Começar conversa
@@ -112,6 +145,8 @@ export function TodayPage() {
           {finishedTitle && (
             <p style={{ marginTop: 16 }}>
               Sessão salva: <strong>{finishedTitle}</strong>
+              {" · "}
+              <Link to="/app/timeline">Ver na Timeline</Link>
             </p>
           )}
         </div>
@@ -127,9 +162,11 @@ export function TodayPage() {
             padding: 20,
           }}
         >
-          <p className="serif" style={{ fontSize: 24, marginTop: 0 }}>
-            {session.icebreaker}
-          </p>
+          {messages.length === 0 && !streaming && (
+            <p className="muted" style={{ marginTop: 0 }}>
+              Responda ao quebra-gelo acima — ou comece por qualquer memória do dia.
+            </p>
+          )}
 
           <div style={{ display: "grid", gap: 12, minHeight: 180 }}>
             {messages.map((m) => (
@@ -193,9 +230,6 @@ export function TodayPage() {
       {error && (
         <p style={{ color: "#8f3d2c", marginTop: 16 }}>
           {error}
-          {/Invalid Firebase token|token/i.test(error)
-            ? " — a API precisa das credenciais Firebase Admin (GOOGLE_APPLICATION_CREDENTIALS)."
-            : ""}
         </p>
       )}
     </div>

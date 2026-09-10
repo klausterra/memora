@@ -1,4 +1,5 @@
 import { Link, Navigate, Outlet, useLocation } from "react-router-dom";
+import { BrandMark } from "../components/BrandMark";
 import { useAuth } from "../lib/auth";
 
 export function AppShell() {
@@ -31,7 +32,8 @@ export function AppShell() {
         }}
       >
         <div>
-          <Link to="/app" className="brand" style={{ textDecoration: "none" }}>
+          <Link to="/app" className="brand brand-row" style={{ textDecoration: "none" }}>
+            <BrandMark size={34} />
             Memora
           </Link>
           <div className="muted" style={{ fontSize: 13 }}>
@@ -40,15 +42,26 @@ export function AppShell() {
           </div>
         </div>
         <nav style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-          <Link className="btn btn-ghost" to="/app">
-            Hoje
-          </Link>
-          <Link className="btn btn-ghost" to="/app/timeline">
-            Timeline
-          </Link>
-          <Link className="btn btn-ghost" to="/app/memories">
-            Memórias
-          </Link>
+          {(
+            [
+              ["/app", "Hoje"],
+              ["/app/timeline", "Timeline"],
+              ["/app/memories", "Memórias"],
+            ] as const
+          ).map(([to, label]) => {
+            const active =
+              to === "/app" ? location.pathname === "/app" : location.pathname.startsWith(to);
+            return (
+              <Link
+                key={to}
+                className={active ? "btn btn-ink" : "btn btn-ghost"}
+                to={to}
+                aria-current={active ? "page" : undefined}
+              >
+                {label}
+              </Link>
+            );
+          })}
           <button className="btn btn-ghost" onClick={() => void logout()}>
             Sair
           </button>

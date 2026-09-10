@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { apiGet } from "../lib/api";
+import { formatEntryDate, friendlyApiMessage, memoryTypeLabel } from "../lib/format";
 import type { MemoryItem } from "@memora/shared";
 
 export function MemoriesPage() {
@@ -9,7 +11,7 @@ export function MemoriesPage() {
   useEffect(() => {
     void apiGet<MemoryItem[]>("/api/v1/memories")
       .then(setItems)
-      .catch((err: Error) => setError(err.message));
+      .catch((err: Error) => setError(friendlyApiMessage(err)));
   }, []);
 
   return (
@@ -19,7 +21,10 @@ export function MemoriesPage() {
       </h1>
       {error && <p style={{ color: "#8f3d2c" }}>{error}</p>}
       {!error && items.length === 0 && (
-        <p className="muted">As memórias aparecem ao encerrar uma conversa.</p>
+        <p className="muted">
+          As memórias aparecem ao encerrar uma conversa em{" "}
+          <Link to="/app">Hoje</Link>.
+        </p>
       )}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 20 }}>
         {items.map((item) => (
@@ -33,10 +38,11 @@ export function MemoriesPage() {
               maxWidth: 320,
             }}
           >
-            <div style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-              {item.memoryType}
+            <div style={{ fontSize: 12, letterSpacing: "0.08em", color: "var(--ink-soft)" }}>
+              {memoryTypeLabel(item.memoryType)}
+              {item.createdAt ? ` · ${formatEntryDate(item.createdAt)}` : ""}
             </div>
-            <div>{item.content}</div>
+            <div style={{ marginTop: 4 }}>{item.content}</div>
           </div>
         ))}
       </div>

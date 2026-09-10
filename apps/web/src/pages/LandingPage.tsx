@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { BrandMark } from "../components/BrandMark";
 import { useAuth } from "../lib/auth";
 
 export function LandingPage() {
@@ -16,7 +17,10 @@ export function LandingPage() {
           alignItems: "center",
         }}
       >
-        <div className="brand">Memora</div>
+        <div className="brand brand-row">
+          <BrandMark size={40} />
+          Memora
+        </div>
         <Link className="btn btn-ink" to={user ? "/app" : "/login"}>
           {user ? "Abrir diário" : "Quero experimentar"}
         </Link>
@@ -62,7 +66,7 @@ export function LandingPage() {
             </a>
           </div>
           <p className="muted" style={{ fontSize: 13, marginTop: 14 }}>
-            Sem tags. Sem humor. Sem página em branco. Auth via Firebase Hipercube.
+            Sem tags. Sem humor. Sem página em branco — só conversa.
           </p>
         </div>
 
