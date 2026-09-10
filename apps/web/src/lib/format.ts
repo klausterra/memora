@@ -4,6 +4,13 @@ const MEMORY_LABELS: Record<string, string> = {
   decision: "Decisão",
   theme: "Tema",
   place: "Lugar",
+  work: "Trabalho",
+  relationship: "Relacionamento",
+  health: "Saúde",
+  money: "Dinheiro",
+  emotion: "Emoção",
+  idea: "Ideia",
+  other: "Outro",
 };
 
 export function memoryTypeLabel(type: string): string {

@@ -17,16 +17,18 @@ describe("icebreaker", () => {
 });
 
 describe("summarizeSession", () => {
-  it("extracts person and project memories", () => {
+  it("extracts person, project and classified topics", () => {
     const result = summarizeSession([
       {
         role: "user",
         content:
-          "Hoje conversei com o João sobre o projeto Atlas e acho melhor simplificar.",
+          "Hoje conversei com o João sobre o projeto Atlas e acho melhor simplificar. Estou preocupado com a entrega.",
       },
     ]);
     expect(result.title.length).toBeGreaterThan(0);
+    expect(result.topics.length).toBeGreaterThan(0);
     expect(result.memories.some((m) => m.type === "person")).toBe(true);
     expect(result.memories.some((m) => m.type === "project")).toBe(true);
+    expect(result.topics.some((t) => t.category === "decision" || t.category === "work")).toBe(true);
   });
 });

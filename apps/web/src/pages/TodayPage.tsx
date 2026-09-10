@@ -1,9 +1,9 @@
 import type { FormEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { pickIcebreaker, type ChatMessage, type ChatSession } from "@memora/shared";
+import { pickIcebreaker, type ChatMessage, type ChatSession, type ConversationTopic } from "@memora/shared";
 import { apiGet, apiPost, streamMessage } from "../lib/api";
-import { friendlyApiMessage } from "../lib/format";
+import { friendlyApiMessage, memoryTypeLabel } from "../lib/format";
 
 export function TodayPage() {
   const [session, setSession] = useState<ChatSession | null>(null);
@@ -14,6 +14,8 @@ export function TodayPage() {
   const [loadingSession, setLoadingSession] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [finishedTitle, setFinishedTitle] = useState<string | null>(null);
+  const [finishedSummary, setFinishedSummary] = useState<string | null>(null);
+  const [finishedTopics, setFinishedTopics] = useState<ConversationTopic[]>([]);
 
   const icebreaker = useMemo(() => pickIcebreaker(), []);
   const dateLabel = useMemo(
@@ -54,6 +56,8 @@ export function TodayPage() {
   async function startSession() {
     setError(null);
     setFinishedTitle(null);
+    setFinishedSummary(null);
+    setFinishedTopics([]);
     setBusy(true);
     try {
       const created = await apiPost<ChatSession>("/api/v1/chat/sessions");
@@ -110,10 +114,13 @@ export function TodayPage() {
     setBusy(true);
     setError(null);
     try {
-      const result = await apiPost<{ entry: { title: string } }>(
-        `/api/v1/chat/sessions/${session.id}/finish`,
-      );
+      const result = await apiPost<{
+        entry: { title: string; summary: string };
+        topics: ConversationTopic[];
+      }>(`/api/v1/chat/sessions/${session.id}/finish`);
       setFinishedTitle(result.entry.title);
+      setFinishedSummary(result.entry.summary);
+      setFinishedTopics(result.topics ?? []);
       setSession(null);
       setMessages([]);
       setStreaming("");
@@ -143,11 +150,43 @@ export function TodayPage() {
             Começar conversa
           </button>
           {finishedTitle && (
-            <p style={{ marginTop: 16 }}>
-              Sessão salva: <strong>{finishedTitle}</strong>
-              {" · "}
-              <Link to="/app/timeline">Ver na Timeline</Link>
-            </p>
+            <div style={{ marginTop: 20 }}>
+              <p style={{ margin: "0 0 8px" }}>
+                Sessão salva: <strong>{finishedTitle}</strong>
+                {" · "}
+                <Link to="/app/timeline">Ver na Timeline</Link>
+                {" · "}
+                <Link to="/app/memories">Ver memórias</Link>
+              </p>
+              {finishedSummary && (
+                <p className="muted" style={{ marginTop: 0 }}>
+                  {finishedSummary}
+                </p>
+              )}
+              {finishedTopics.length > 0 && (
+                <div style={{ marginTop: 12 }}>
+                  <div className="muted" style={{ fontSize: 13, marginBottom: 8 }}>
+                    Assuntos extraídos
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {finishedTopics.map((topic) => (
+                      <span
+                        key={`${topic.category}-${topic.label}`}
+                        style={{
+                          fontSize: 13,
+                          border: "1px dashed var(--gold)",
+                          background: "#f3ead4",
+                          padding: "8px 12px",
+                          borderRadius: 999,
+                        }}
+                      >
+                        {memoryTypeLabel(topic.category)} · {topic.label}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           )}
         </div>
       )}
@@ -227,11 +266,7 @@ export function TodayPage() {
         </div>
       )}
 
-      {error && (
-        <p style={{ color: "#8f3d2c", marginTop: 16 }}>
-          {error}
-        </p>
-      )}
+      {error && <p style={{ color: "#8f3d2c", marginTop: 16 }}>{error}</p>}
     </div>
   );
 }

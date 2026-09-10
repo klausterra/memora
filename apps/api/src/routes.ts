@@ -3,7 +3,7 @@ import { z } from "zod";
 import { pickIcebreaker } from "@memora/shared";
 import { authenticateRequest, type AuthUser } from "./auth.js";
 import { getDb, newId, nowIso } from "./db.js";
-import { streamAssistantReply, summarizeSession } from "./ai.js";
+import { streamAssistantReply, summarizeSessionWithAi } from "./ai.js";
 
 async function requireUser(request: FastifyRequest): Promise<AuthUser> {
   return authenticateRequest(request);
@@ -221,7 +221,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
         .prepare(`SELECT role, content FROM messages WHERE session_id = ? ORDER BY created_at ASC`)
         .all(id) as Array<{ role: string; content: string }>;
 
-      const summarized = summarizeSession(messages);
+      const summarized = await summarizeSessionWithAi(messages);
       const entryId = newId();
       const createdAt = nowIso();
       const entryDate = createdAt.slice(0, 10);
@@ -248,7 +248,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
           createdAt,
         );
 
-      for (const memory of summarized.memories.filter((m) => m.importance >= 0.65)) {
+      for (const memory of summarized.memories.filter((m) => m.importance >= 0.6)) {
         database
           .prepare(
             `INSERT INTO memories (id, user_id, memory_type, content, importance, created_at, updated_at)
@@ -269,6 +269,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
             entryDate,
             createdAt,
           },
+          topics: summarized.topics,
           memoriesExtracted: summarized.memories.length,
         },
         error: null,

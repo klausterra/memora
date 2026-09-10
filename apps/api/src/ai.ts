@@ -241,12 +241,81 @@ function stubReply(text: string): string {
   return "Ficou registrado. Se isso virasse uma frase para o seu eu daqui a um ano, qual seria?";
 }
 
-export function summarizeSession(messages: Array<{ role: string; content: string }>): {
+export type SessionSummary = {
   title: string;
   summary: string;
   content: string;
+  topics: Array<{ label: string; category: string; importance: number }>;
   memories: Array<{ type: string; content: string; importance: number }>;
-} {
+};
+
+const TOPIC_CATS = new Set([
+  "work",
+  "relationship",
+  "health",
+  "money",
+  "emotion",
+  "decision",
+  "project",
+  "person",
+  "idea",
+  "place",
+  "theme",
+  "other",
+]);
+
+function normalizeCategory(raw: string): string {
+  const key = raw.toLowerCase().trim();
+  const aliases: Record<string, string> = {
+    trabalho: "work",
+    work: "work",
+    carreira: "work",
+    negócio: "work",
+    negocio: "work",
+    relacionamento: "relationship",
+    relationship: "relationship",
+    pessoa: "person",
+    person: "person",
+    saúde: "health",
+    saude: "health",
+    health: "health",
+    dinheiro: "money",
+    money: "money",
+    finanças: "money",
+    financas: "money",
+    emoção: "emotion",
+    emocao: "emotion",
+    emotion: "emotion",
+    sentimento: "emotion",
+    decisão: "decision",
+    decisao: "decision",
+    decision: "decision",
+    projeto: "project",
+    project: "project",
+    ideia: "idea",
+    idea: "idea",
+    lugar: "place",
+    place: "place",
+    tema: "theme",
+    theme: "theme",
+    assunto: "theme",
+  };
+  const mapped = aliases[key] ?? key;
+  return TOPIC_CATS.has(mapped) ? mapped : "other";
+}
+
+function topicsToMemories(
+  topics: SessionSummary["topics"],
+): SessionSummary["memories"] {
+  return topics.map((t) => ({
+    type: normalizeCategory(t.category),
+    content: t.label,
+    importance: Math.min(1, Math.max(0.5, t.importance)),
+  }));
+}
+
+/** Heuristic fallback when Vertex is unavailable */
+export function summarizeSession(messages: Array<{ role: string; content: string }>): SessionSummary {
   const userBits = messages.filter((m) => m.role === "user").map((m) => m.content);
   const joined = userBits.join("\n");
   const firstLine = userBits[0]?.trim() || "Sessão de diário";
@@ -256,30 +325,191 @@ export function summarizeSession(messages: Array<{ role: string; content: string
       ? "Sessão sem mensagens do usuário."
       : `Registro de ${userBits.length} momento(s) conversado(s).`;
 
-  const memories: Array<{ type: string; content: string; importance: number }> = [];
+  const memories: SessionSummary["memories"] = [];
+  const topics: SessionSummary["topics"] = [];
+
   const person = joined.match(/(?:com o|com a|e o|e a)\s+([A-Za-zÁÉÍÓÚÂÊÔÃáéíóúãõç]{2,})/i);
   if (person && !["projeto", "produto"].includes(person[1]!.toLowerCase())) {
-    memories.push({
-      type: "person",
-      content: `Mencionou ${person[1]}`,
-      importance: 0.72,
-    });
+    const label = `Conversa envolvendo ${person[1]}`;
+    topics.push({ label, category: "person", importance: 0.72 });
+    memories.push({ type: "person", content: `Mencionou ${person[1]}`, importance: 0.72 });
   }
   const project = joined.match(/(?:projeto|produto|empresa|app)\s+([A-ZÁÉÍÓÚÂÊÔÃ][\w-]+)/i);
   if (project) {
-    memories.push({
-      type: "project",
-      content: `Falou do projeto ${project[1]}`,
-      importance: 0.8,
-    });
+    const label = `Projeto ${project[1]}`;
+    topics.push({ label, category: "project", importance: 0.8 });
+    memories.push({ type: "project", content: `Falou do projeto ${project[1]}`, importance: 0.8 });
   }
   if (/decid|simplif|vou|vamos/i.test(joined)) {
+    topics.push({ label: "Decisão em aberto", category: "decision", importance: 0.7 });
     memories.push({
       type: "decision",
       content: "Possível decisão em aberto registrada na sessão.",
       importance: 0.7,
     });
   }
+  if (/trabalh|reuni|cliente|entrega|prazo/i.test(joined)) {
+    topics.push({ label: "Assuntos de trabalho", category: "work", importance: 0.68 });
+  }
+  if (/ansios|preocup|feliz|triste|raiv|medo|alívio|alivio/i.test(joined)) {
+    topics.push({ label: "Estado emocional do dia", category: "emotion", importance: 0.66 });
+  }
+  if (topics.length === 0 && userBits.length > 0) {
+    topics.push({
+      label: title.length > 48 ? `${title.slice(0, 45)}…` : title,
+      category: "theme",
+      importance: 0.65,
+    });
+  }
 
-  return { title, summary, content: joined || firstLine, memories };
+  // Ensure topic chips become memories too
+  for (const mem of topicsToMemories(topics)) {
+    if (!memories.some((m) => m.type === mem.type && m.content === mem.content)) {
+      memories.push(mem);
+    }
+  }
+
+  return { title, summary, content: joined || firstLine, topics, memories };
+}
+
+function parseJsonObject(text: string): Record<string, unknown> | null {
+  const trimmed = text.trim();
+  const fence = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const raw = fence?.[1]?.trim() ?? trimmed;
+  const start = raw.indexOf("{");
+  const end = raw.lastIndexOf("}");
+  if (start < 0 || end <= start) return null;
+  try {
+    return JSON.parse(raw.slice(start, end + 1)) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+async function vertexJson(prompt: string): Promise<Record<string, unknown> | null> {
+  if (!vertexEnabled()) return null;
+  try {
+    const token = await accessToken();
+    const res = await fetch(endpoint(false), {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.2,
+          maxOutputTokens: 1024,
+        },
+      }),
+    });
+    if (!res.ok) {
+      const detail = await res.text();
+      throw new Error(`Vertex ${res.status}: ${detail.slice(0, 300)}`);
+    }
+    const json = (await res.json()) as unknown;
+    return parseJsonObject(extractText(json));
+  } catch (err) {
+    console.error("[ai] topic extraction failed", err);
+    return null;
+  }
+}
+
+/**
+ * Summarize a finished conversation: title, prose summary, classified topics.
+ * Uses Vertex when available; falls back to heuristics.
+ */
+export async function summarizeSessionWithAi(
+  messages: Array<{ role: string; content: string }>,
+): Promise<SessionSummary> {
+  const fallback = summarizeSession(messages);
+  if (messages.length === 0) return fallback;
+
+  const transcript = messages
+    .filter((m) => m.role === "user" || m.role === "assistant")
+    .map((m) => `${m.role === "user" ? "Usuário" : "Memora"}: ${m.content}`)
+    .join("\n");
+
+  const prompt = `Você é o analista do Memora (diário conversacional).
+Leia a conversa e extraia os assuntos/discussões principais, classificando cada um.
+
+Categorias válidas (use exatamente estas chaves em inglês):
+work, relationship, health, money, emotion, decision, project, person, idea, place, theme, other
+
+Responda SOMENTE JSON válido neste formato:
+{
+  "title": "título curto da sessão (pt-BR, máx 60 chars)",
+  "summary": "resumo humano em 1-2 frases (pt-BR)",
+  "topics": [
+    { "label": "nome curto do assunto", "category": "work", "importance": 0.0 }
+  ],
+  "memories": [
+    { "type": "person", "content": "fato memorável curto", "importance": 0.0 }
+  ]
+}
+
+Regras:
+- 2 a 6 topics
+- importance entre 0.55 e 1
+- type em memories: person|project|decision|theme|place|work|relationship|health|money|emotion|idea|other
+- não invente fatos que não estejam na conversa
+
+CONVERSA:
+${transcript}`;
+
+  const parsed = await vertexJson(prompt);
+  if (!parsed) return fallback;
+
+  const title =
+    typeof parsed.title === "string" && parsed.title.trim()
+      ? parsed.title.trim().slice(0, 80)
+      : fallback.title;
+  const summary =
+    typeof parsed.summary === "string" && parsed.summary.trim()
+      ? parsed.summary.trim()
+      : fallback.summary;
+
+  const topicsRaw = Array.isArray(parsed.topics) ? parsed.topics : [];
+  const topics: SessionSummary["topics"] = topicsRaw
+    .map((item) => {
+      const row = item as Record<string, unknown>;
+      const label = typeof row.label === "string" ? row.label.trim() : "";
+      if (!label) return null;
+      const importance = typeof row.importance === "number" ? row.importance : 0.7;
+      return {
+        label: label.slice(0, 120),
+        category: normalizeCategory(String(row.category ?? "theme")),
+        importance: Math.min(1, Math.max(0.55, importance)),
+      };
+    })
+    .filter((t): t is SessionSummary["topics"][number] => Boolean(t))
+    .slice(0, 8);
+
+  const memoriesRaw = Array.isArray(parsed.memories) ? parsed.memories : [];
+  const memories: SessionSummary["memories"] = memoriesRaw
+    .map((item) => {
+      const row = item as Record<string, unknown>;
+      const content = typeof row.content === "string" ? row.content.trim() : "";
+      if (!content) return null;
+      const importance = typeof row.importance === "number" ? row.importance : 0.7;
+      return {
+        type: normalizeCategory(String(row.type ?? "theme")),
+        content: content.slice(0, 200),
+        importance: Math.min(1, Math.max(0.55, importance)),
+      };
+    })
+    .filter((m): m is SessionSummary["memories"][number] => Boolean(m));
+
+  for (const mem of topicsToMemories(topics.length ? topics : fallback.topics)) {
+    if (!memories.some((m) => m.content === mem.content)) memories.push(mem);
+  }
+
+  return {
+    title,
+    summary,
+    content: fallback.content,
+    topics: topics.length ? topics : fallback.topics,
+    memories: memories.length ? memories : fallback.memories,
+  };
 }

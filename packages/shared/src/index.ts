@@ -57,6 +57,30 @@ export interface MemoryItem {
   createdAt: string;
 }
 
+/** Categories used when classifying conversation topics */
+export const TOPIC_CATEGORIES = [
+  "work",
+  "relationship",
+  "health",
+  "money",
+  "emotion",
+  "decision",
+  "project",
+  "person",
+  "idea",
+  "place",
+  "theme",
+  "other",
+] as const;
+
+export type TopicCategory = (typeof TOPIC_CATEGORIES)[number];
+
+export interface ConversationTopic {
+  label: string;
+  category: TopicCategory | string;
+  importance: number;
+}
+
 export const ICEBREAKERS = [
   "O que vale a pena guardar de hoje?",
   "O que ficou na sua cabeça hoje?",
