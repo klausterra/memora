@@ -1,0 +1,18 @@
+{
+  "name": "Memora",
+  "short_name": "Memora",
+  "description": "Sua memória pessoal inteligente",
+  "start_url": "/app",
+  "display": "standalone",
+  "background_color": "#f3ece1",
+  "theme_color": "#21564c",
+  "lang": "pt-BR",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

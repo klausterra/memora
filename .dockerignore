@@ -1,0 +1,10 @@
+.dockerignore
+.git
+**/node_modules
+**/dist
+**/data
+**/.env
+**/.env.*
+apps/web
+public
+*.md
