@@ -1,7 +1,7 @@
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import { isAdminEmail, type PublicUser } from "@memora/shared";
 import type { FastifyRequest } from "fastify";
-import { getDb, newId, nowIso } from "./db.js";
+import { getDb, newId, nowIso } from "./db/index.js";
 
 export type AuthUser = PublicUser & { firebaseUid: string };
 
@@ -10,32 +10,36 @@ const jwks = createRemoteJWKSet(
   new URL("https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com"),
 );
 
-function upsertUser(firebaseUid: string, email: string | null, name: string | null): AuthUser {
+type UserRow = {
+  id: string;
+  email: string | null;
+  name: string | null;
+  preferred_name: string | null;
+  role: "user" | "admin";
+  timezone: string;
+};
+
+async function upsertUser(
+  firebaseUid: string,
+  email: string | null,
+  name: string | null,
+): Promise<AuthUser> {
   const database = getDb();
-  const existing = database
-    .prepare("SELECT * FROM users WHERE firebase_uid = ?")
-    .get(firebaseUid) as
-    | {
-        id: string;
-        email: string | null;
-        name: string | null;
-        preferred_name: string | null;
-        role: "user" | "admin";
-        timezone: string;
-      }
-    | undefined;
+  const existing = await database.queryOne<UserRow>(
+    "SELECT * FROM users WHERE firebase_uid = ?",
+    [firebaseUid],
+  );
 
   const role = isAdminEmail(email) ? "admin" : "user";
   const ts = nowIso();
 
   if (!existing) {
     const id = newId();
-    database
-      .prepare(
-        `INSERT INTO users (id, firebase_uid, email, name, preferred_name, role, timezone, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, 'America/Sao_Paulo', ?, ?)`,
-      )
-      .run(id, firebaseUid, email, name, name?.split(" ")[0] ?? null, role, ts, ts);
+    await database.execute(
+      `INSERT INTO users (id, firebase_uid, email, name, preferred_name, role, timezone, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, 'America/Sao_Paulo', ?, ?)`,
+      [id, firebaseUid, email, name, name?.split(" ")[0] ?? null, role, ts, ts],
+    );
 
     return {
       id,
@@ -48,12 +52,11 @@ function upsertUser(firebaseUid: string, email: string | null, name: string | nu
     };
   }
 
-  database
-    .prepare(
-      `UPDATE users SET email = ?, name = ?, role = ?, updated_at = ?
-       WHERE firebase_uid = ?`,
-    )
-    .run(email, name, role, ts, firebaseUid);
+  await database.execute(
+    `UPDATE users SET email = ?, name = ?, role = ?, updated_at = ?
+     WHERE firebase_uid = ?`,
+    [email, name, role, ts, firebaseUid],
+  );
 
   return {
     id: existing.id,

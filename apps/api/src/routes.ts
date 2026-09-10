@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { pickIcebreaker } from "@memora/shared";
 import { authenticateRequest, type AuthUser } from "./auth.js";
-import { getDb, newId, nowIso } from "./db.js";
+import { getDb, newId, nowIso } from "./db/index.js";
 import { streamAssistantReply, summarizeSessionWithAi } from "./ai.js";
 
 async function requireUser(request: FastifyRequest): Promise<AuthUser> {
@@ -40,12 +40,11 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       const id = newId();
       const icebreaker = pickIcebreaker();
       const startedAt = nowIso();
-      database
-        .prepare(
-          `INSERT INTO journal_sessions (id, user_id, mode, status, icebreaker, started_at, ended_at)
-           VALUES (?, ?, 'free', 'active', ?, ?, NULL)`,
-        )
-        .run(id, user.id, icebreaker, startedAt);
+      await database.execute(
+        `INSERT INTO journal_sessions (id, user_id, mode, status, icebreaker, started_at, ended_at)
+         VALUES (?, ?, 'free', 'active', ?, ?, NULL)`,
+        [id, user.id, icebreaker, startedAt],
+      );
 
       return {
         success: true,
@@ -61,12 +60,11 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/v1/chat/sessions", async (request, reply) => {
     try {
       const user = await requireUser(request);
-      const rows = getDb()
-        .prepare(
-          `SELECT id, status, icebreaker, started_at as startedAt, ended_at as endedAt
-           FROM journal_sessions WHERE user_id = ? ORDER BY started_at DESC LIMIT 50`,
-        )
-        .all(user.id);
+      const rows = await getDb().queryAll(
+        `SELECT id, status, icebreaker, started_at as "startedAt", ended_at as "endedAt"
+         FROM journal_sessions WHERE user_id = ? ORDER BY started_at DESC LIMIT 50`,
+        [user.id],
+      );
       return { success: true, data: rows, error: null };
     } catch (err) {
       const status = (err as { statusCode?: number }).statusCode ?? 500;
@@ -78,21 +76,19 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     try {
       const user = await requireUser(request);
       const { id } = request.params as { id: string };
-      const session = getDb()
-        .prepare(
-          `SELECT id, status, icebreaker, started_at as startedAt, ended_at as endedAt
-           FROM journal_sessions WHERE id = ? AND user_id = ?`,
-        )
-        .get(id, user.id);
+      const session = await getDb().queryOne(
+        `SELECT id, status, icebreaker, started_at as "startedAt", ended_at as "endedAt"
+         FROM journal_sessions WHERE id = ? AND user_id = ?`,
+        [id, user.id],
+      );
       if (!session) {
         return reply.code(404).send({ success: false, data: null, error: "Session not found" });
       }
-      const messages = getDb()
-        .prepare(
-          `SELECT id, session_id as sessionId, role, content, created_at as createdAt
-           FROM messages WHERE session_id = ? ORDER BY created_at ASC`,
-        )
-        .all(id);
+      const messages = await getDb().queryAll(
+        `SELECT id, session_id as "sessionId", role, content, created_at as "createdAt"
+         FROM messages WHERE session_id = ? ORDER BY created_at ASC`,
+        [id],
+      );
       return { success: true, data: { session, messages }, error: null };
     } catch (err) {
       const status = (err as { statusCode?: number }).statusCode ?? 500;
@@ -107,11 +103,10 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       const body = z.object({ content: z.string().min(1).max(8000) }).parse(request.body);
 
       const database = getDb();
-      const session = database
-        .prepare(`SELECT * FROM journal_sessions WHERE id = ? AND user_id = ?`)
-        .get(id, user.id) as
-        | { id: string; status: string; icebreaker: string }
-        | undefined;
+      const session = await database.queryOne<{ id: string; status: string; icebreaker: string }>(
+        `SELECT * FROM journal_sessions WHERE id = ? AND user_id = ?`,
+        [id, user.id],
+      );
 
       if (!session) {
         return reply.code(404).send({ success: false, data: null, error: "Session not found" });
@@ -120,19 +115,17 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
         return reply.code(409).send({ success: false, data: null, error: "Session already finished" });
       }
 
-      const history = database
-        .prepare(
-          `SELECT role, content FROM messages WHERE session_id = ? ORDER BY created_at ASC`,
-        )
-        .all(id) as Array<{ role: "user" | "assistant"; content: string }>;
+      const history = await database.queryAll<{ role: "user" | "assistant"; content: string }>(
+        `SELECT role, content FROM messages WHERE session_id = ? ORDER BY created_at ASC`,
+        [id],
+      );
 
       const userMessageId = newId();
       const userCreatedAt = nowIso();
-      database
-        .prepare(
-          `INSERT INTO messages (id, session_id, role, content, created_at) VALUES (?, ?, 'user', ?, ?)`,
-        )
-        .run(userMessageId, id, body.content, userCreatedAt);
+      await database.execute(
+        `INSERT INTO messages (id, session_id, role, content, created_at) VALUES (?, ?, 'user', ?, ?)`,
+        [userMessageId, id, body.content, userCreatedAt],
+      );
 
       reply.hijack();
       reply.raw.writeHead(200, {
@@ -174,11 +167,10 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
 
       const assistantId = newId();
       const assistantCreatedAt = nowIso();
-      database
-        .prepare(
-          `INSERT INTO messages (id, session_id, role, content, created_at) VALUES (?, ?, 'assistant', ?, ?)`,
-        )
-        .run(assistantId, id, assistantText, assistantCreatedAt);
+      await database.execute(
+        `INSERT INTO messages (id, session_id, role, content, created_at) VALUES (?, ?, 'assistant', ?, ?)`,
+        [assistantId, id, assistantText, assistantCreatedAt],
+      );
 
       writeEvent("assistant_message", {
         id: assistantId,
@@ -203,41 +195,38 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       const user = await requireUser(request);
       const { id } = request.params as { id: string };
       const database = getDb();
-      const session = database
-        .prepare(`SELECT * FROM journal_sessions WHERE id = ? AND user_id = ?`)
-        .get(id, user.id) as { id: string; status: string } | undefined;
+      const session = await database.queryOne<{ id: string; status: string }>(
+        `SELECT * FROM journal_sessions WHERE id = ? AND user_id = ?`,
+        [id, user.id],
+      );
 
       if (!session) {
         return reply.code(404).send({ success: false, data: null, error: "Session not found" });
       }
       if (session.status === "finished") {
-        const entry = database
-          .prepare(`SELECT * FROM journal_entries WHERE session_id = ?`)
-          .get(id);
+        const entry = await database.queryOne(`SELECT * FROM journal_entries WHERE session_id = ?`, [id]);
         return { success: true, data: { entry }, error: null };
       }
 
-      const messages = database
-        .prepare(`SELECT role, content FROM messages WHERE session_id = ? ORDER BY created_at ASC`)
-        .all(id) as Array<{ role: string; content: string }>;
+      const messages = await database.queryAll<{ role: string; content: string }>(
+        `SELECT role, content FROM messages WHERE session_id = ? ORDER BY created_at ASC`,
+        [id],
+      );
 
       const summarized = await summarizeSessionWithAi(messages);
       const entryId = newId();
       const createdAt = nowIso();
       const entryDate = createdAt.slice(0, 10);
 
-      database
-        .prepare(
-          `UPDATE journal_sessions SET status = 'finished', ended_at = ? WHERE id = ? AND user_id = ?`,
-        )
-        .run(createdAt, id, user.id);
+      await database.execute(
+        `UPDATE journal_sessions SET status = 'finished', ended_at = ? WHERE id = ? AND user_id = ?`,
+        [createdAt, id, user.id],
+      );
 
-      database
-        .prepare(
-          `INSERT INTO journal_entries (id, user_id, session_id, title, summary, content, entry_date, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        )
-        .run(
+      await database.execute(
+        `INSERT INTO journal_entries (id, user_id, session_id, title, summary, content, entry_date, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
           entryId,
           user.id,
           id,
@@ -246,15 +235,15 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
           summarized.content,
           entryDate,
           createdAt,
-        );
+        ],
+      );
 
       for (const memory of summarized.memories.filter((m) => m.importance >= 0.6)) {
-        database
-          .prepare(
-            `INSERT INTO memories (id, user_id, memory_type, content, importance, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?)`,
-          )
-          .run(newId(), user.id, memory.type, memory.content, memory.importance, createdAt, createdAt);
+        await database.execute(
+          `INSERT INTO memories (id, user_id, memory_type, content, importance, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [newId(), user.id, memory.type, memory.content, memory.importance, createdAt, createdAt],
+        );
       }
 
       return {
@@ -283,12 +272,11 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/v1/journal", async (request, reply) => {
     try {
       const user = await requireUser(request);
-      const rows = getDb()
-        .prepare(
-          `SELECT id, session_id as sessionId, title, summary, content, entry_date as entryDate, created_at as createdAt
-           FROM journal_entries WHERE user_id = ? ORDER BY entry_date DESC, created_at DESC LIMIT 100`,
-        )
-        .all(user.id);
+      const rows = await getDb().queryAll(
+        `SELECT id, session_id as "sessionId", title, summary, content, entry_date as "entryDate", created_at as "createdAt"
+         FROM journal_entries WHERE user_id = ? ORDER BY entry_date DESC, created_at DESC LIMIT 100`,
+        [user.id],
+      );
       return { success: true, data: rows, error: null };
     } catch (err) {
       const status = (err as { statusCode?: number }).statusCode ?? 500;
@@ -299,12 +287,11 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/v1/timeline", async (request, reply) => {
     try {
       const user = await requireUser(request);
-      const rows = getDb()
-        .prepare(
-          `SELECT id, title, summary, entry_date as entryDate, created_at as createdAt
-           FROM journal_entries WHERE user_id = ? ORDER BY entry_date DESC, created_at DESC LIMIT 100`,
-        )
-        .all(user.id);
+      const rows = await getDb().queryAll(
+        `SELECT id, title, summary, entry_date as "entryDate", created_at as "createdAt"
+         FROM journal_entries WHERE user_id = ? ORDER BY entry_date DESC, created_at DESC LIMIT 100`,
+        [user.id],
+      );
       return { success: true, data: rows, error: null };
     } catch (err) {
       const status = (err as { statusCode?: number }).statusCode ?? 500;
@@ -315,12 +302,11 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/v1/memories", async (request, reply) => {
     try {
       const user = await requireUser(request);
-      const rows = getDb()
-        .prepare(
-          `SELECT id, memory_type as memoryType, content, importance, created_at as createdAt
-           FROM memories WHERE user_id = ? ORDER BY created_at DESC LIMIT 100`,
-        )
-        .all(user.id);
+      const rows = await getDb().queryAll(
+        `SELECT id, memory_type as "memoryType", content, importance, created_at as "createdAt"
+         FROM memories WHERE user_id = ? ORDER BY created_at DESC LIMIT 100`,
+        [user.id],
+      );
       return { success: true, data: rows, error: null };
     } catch (err) {
       const status = (err as { statusCode?: number }).statusCode ?? 500;

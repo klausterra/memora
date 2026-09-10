@@ -1,5 +1,5 @@
 /* Memora minimal service worker — enables PWA installability */
-const CACHE = "memora-shell-v1";
+const CACHE = "memora-shell-v2";
 const PRECACHE = ["/", "/index.html", "/manifest.webmanifest", "/icon-192.png", "/icon-512.png", "/favicon.svg"];
 
 self.addEventListener("install", (event) => {

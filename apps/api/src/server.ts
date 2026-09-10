@@ -2,7 +2,7 @@ import "dotenv/config";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import { registerRoutes } from "./routes.js";
-import { getDb } from "./db.js";
+import { initDb } from "./db/index.js";
 
 const port = Number(process.env.PORT ?? 8787);
 const host = process.env.HOST ?? "0.0.0.0";
@@ -13,7 +13,7 @@ const origins = (process.env.CORS_ORIGIN ?? "http://localhost:5173")
   .filter(Boolean);
 
 async function main() {
-  getDb();
+  await initDb();
 
   const app = Fastify({ logger: true });
   await app.register(cors, {

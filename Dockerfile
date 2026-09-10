@@ -10,7 +10,6 @@ RUN pnpm install --frozen-lockfile --filter @memora/api... \
 WORKDIR /app/apps/api
 ENV PORT=8080
 ENV HOST=0.0.0.0
-ENV DATABASE_PATH=/tmp/memora.sqlite
 ENV FIREBASE_PROJECT_ID=hipercube-dev-train
 ENV AI_BACKEND=vertex
 ENV VERTEX_PROJECT=hipercube-500101

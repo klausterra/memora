@@ -56,6 +56,8 @@ Cloud Run (projeto `hipercube-500101`, região `us-central1`):
 
 - URL: https://memora-api-m4vzgfiooa-uc.a.run.app
 - Health: `/health`
+- Banco: **Cloud SQL Postgres** `memora-pg` (socket `/cloudsql/hipercube-500101:us-central1:memora-pg`)
+- Segredo: `memora-database-url` (Secret Manager) → env `DATABASE_URL`
 
 ```bash
 gcloud run deploy memora-api \
@@ -63,8 +65,12 @@ gcloud run deploy memora-api \
   --region=us-central1 \
   --source=. \
   --allow-unauthenticated \
-  --env-vars-file=apps/api/cloudrun.env.yaml
+  --set-cloudsql-instances=hipercube-500101:us-central1:memora-pg \
+  --env-vars-file=apps/api/cloudrun.env.yaml \
+  --update-secrets=DATABASE_URL=memora-database-url:latest
 ```
+
+Local: sem `DATABASE_URL` → SQLite em `DATABASE_PATH` (padrão `./data/memora.sqlite`).
 
 Web em produção aponta para a API via `VITE_API_BASE` no build:
 
@@ -72,7 +78,5 @@ Web em produção aponta para a API via `VITE_API_BASE` no build:
 VITE_API_BASE=https://memora-api-m4vzgfiooa-uc.a.run.app pnpm build:web
 npx wrangler pages deploy apps/web/dist --project-name memora
 ```
-
-Nota: SQLite em `/tmp` no Cloud Run é efêmero (reinícios perdem dados). Persistência durável fica para uma próxima onda.
 
 Firebase Auth Settings → Authorized domains: adicionar `memora.hipercube.ia.br` e `memora-1f1.pages.dev`.
